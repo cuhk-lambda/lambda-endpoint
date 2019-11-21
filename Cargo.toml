@@ -7,6 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hyper = "0.12.35"
+reqwest = "0.9.22"
 gotham = "0.4.0"
 serde = {version = "1.0.102", features = ["derive"]}
 clap = "2.33.0"
@@ -15,3 +17,13 @@ diesel = {version = "1.4.3", features = ["postgres"]}
 toml = "0.5.5"
 lazy_static = "1.4.0"
 regex = "1"
+rust-argon2 = "0.6.0"
+crypto_api_osrandom = "0.1.5"
+simd-json = "0.1.26"
+chrono = {version = "0.4.9", features = ["serde"]}
+gotham_derive = "0.4.0"
+mime = "0.3.14"
+serde_json = "1.0.41"
+crossbeam = "0.7.3"
+rayon = "1.2.1"
+uuid = { version = "0.8", features = ["serde", "v4"] }

@@ -6,6 +6,5 @@ table! {
         environment -> Array<Text>,
         values -> Array<Text>,
         options -> Array<Text>,
-        trace_type -> Text,
     }
 }

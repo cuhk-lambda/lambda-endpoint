@@ -26,7 +26,6 @@ pub struct GlobalConfig {
 
 fn init_config() -> GlobalConfig {
     let config = config();
-    println!("{}", config);
     let mut buffer = String::new();
     match File::open(config)
         .and_then(|mut x|x.read_to_string(&mut buffer))
