@@ -14,15 +14,12 @@ use crate::config::*;
 pub struct RunningTrace {
     pub start_time: DateTime<Utc>,
     pub trace_id: i32,
-    pub pid: libc::pid_t
+    pub child: Child
 }
 
 impl RunningTrace {
-    pub fn kill(&self) {
-        use libc::kill as _kill;
-        unsafe {
-            _kill(self.pid, 9);
-        }
+    pub fn kill(&mut self) {
+        self.child.kill().unwrap_or(());
     }
 }
 

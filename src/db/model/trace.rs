@@ -125,19 +125,21 @@ impl Trace {
                 .spawn();
             match child {
                 Ok(mut child) => {
-                    let rt = RunningTrace {
-                        start_time: Utc::now(),
-                        trace_id: id,
-                        pid: child.id() as i32,
-                    };
-                    crate::endpoint::put_running(_name.as_str(), rt);
                     {
-                        let mut input = child.stdin.expect("unable to get input");
+                        let mut input = child.stdin.take().expect("unable to get input");
                         input.write(crate::config::global_config().root_password.as_bytes()).unwrap();
                         input.flush().unwrap();
                     }
                     let output =
-                        child.stdout.expect("unable to get output");
+                        child.stdout.take().expect("unable to get output");
+                    let mut stderr =
+                        child.stderr.take().expect("unable to get output");
+                    let rt = RunningTrace {
+                        start_time: Utc::now(),
+                        trace_id: id,
+                        child,
+                    };
+                    crate::endpoint::put_running(_name.as_str(), rt);
                     let mut buffer = Vec::new();
 
                     let mut output = ToBase64Reader::new(output);
@@ -151,13 +153,11 @@ impl Trace {
                                 submit(x.clone(), &buffer[0..n], false, None, k);
                                 println!("!{}", k);
                             } else {
-                                let stderr = child.stderr.as_mut().map(
-                                    |x|
-                                        {
-                                            let mut b = String::new();
-                                            x.read_to_string(&mut b).expect("failed to get stderr");
-                                            b
-                                        });
+                                let stderr = Some({
+                                    let mut b = String::new();
+                                    stderr.read_to_string(&mut b).expect("failed to get stderr");
+                                    b
+                                });
                                 submit(x.clone(), &buffer[0..n], true, stderr, k);
                                 println!("[INFO] all submissions of {} finished.", x);
                                 remove_running(_name.as_str());

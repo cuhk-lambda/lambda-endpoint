@@ -140,7 +140,8 @@ pub fn kill_trace(mut state: State) -> Box<HandlerFuture> {
                 let reply = match json {
                     Ok(e) =>
                         {
-                            match crate::endpoint::RUNNING.read().get(e.file_path.as_str()) {
+                            let mut writer = crate::endpoint::RUNNING.write();
+                            let res = match writer.get_mut(e.file_path.as_str()) {
                                 Some(t) => {
                                     t.kill();
                                     serde_json::to_string(&KillReply { killed: true }).unwrap()
@@ -148,7 +149,9 @@ pub fn kill_trace(mut state: State) -> Box<HandlerFuture> {
                                 None => {
                                     serde_json::to_string(&ErrorReply { error: "no such process".to_string() }).unwrap()
                                 }
-                            }
+                            };
+                            writer.remove(e.file_path.as_str());
+                            res
                         }
                     Err(e) =>
                         serde_json::to_string(&ErrorReply { error: format!("{}", e) }).unwrap()
