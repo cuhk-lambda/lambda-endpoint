@@ -10,7 +10,7 @@ use crate::config::global_config;
 use crate::diesel::prelude::*;
 use crate::endpoint::*;
 use crate::http_server::global_state::GlobalState;
-use crate::http_server::reply::{ErrorReply, RunningTraceReply, StartTraceReply, StateReply};
+use crate::http_server::reply::{ErrorReply, KillReply, RunningTraceReply, StartTraceReply, StateReply};
 
 use super::requests::*;
 
@@ -128,6 +128,44 @@ pub fn running_traces(state: State) -> (State, Response<Body>) {
         let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
         (state, res)
     })
+}
+
+pub fn kill_trace(mut state: State) -> Box<HandlerFuture> {
+    let body = Body::take_from(&mut state);
+    let f = body.concat2().then(move |real| match real {
+        Ok(x) => {
+            with_verification_res(state, box move |state| {
+                let json =
+                    simd_json::serde::from_slice::<KillTrace>(x.to_vec().as_mut_slice());
+                let reply = match json {
+                    Ok(e) =>
+                        {
+                            match crate::endpoint::RUNNING.read().get(e.file_path.as_str()) {
+                                Some(t) => {
+                                    t.kill();
+                                    serde_json::to_string(&KillReply { killed: true }).unwrap()
+                                }
+                                None => {
+                                    serde_json::to_string(&ErrorReply { error: "no such process".to_string() }).unwrap()
+                                }
+                            }
+                        }
+                    Err(e) =>
+                        serde_json::to_string(&ErrorReply { error: format!("{}", e) }).unwrap()
+                };
+                let body = Body::from(reply);
+                let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
+                Ok((state, res))
+            })
+        }
+        Err(e) => {
+            let json = ErrorReply { error: format!("{}", e) };
+            let body = Body::from(serde_json::to_string(&json).unwrap());
+            let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
+            Ok((state, res))
+        }
+    });
+    Box::new(f)
 }
 
 pub fn start_trace(mut state: State) -> Box<HandlerFuture> {

@@ -11,36 +11,19 @@ use serde::*;
 
 use crate::config::*;
 
-#[derive(Clone)]
-pub struct ChildWrapper {
-    pub inner: Arc<RefCell<Child>>,
-    ptr: *mut Child
-}
-
-unsafe impl Send for ChildWrapper {}
-
-unsafe impl Sync for ChildWrapper {}
-
-impl ChildWrapper {
-    pub fn new(child: Child) -> Self {
-        let cell = RefCell::new(child);
-        let ptr = cell.as_ptr();
-        ChildWrapper {
-            inner: Arc::new(cell),
-            ptr
-        }
-    }
-    pub fn kill(&self) {
-        unsafe {
-            (*self.ptr).kill().unwrap()
-        }
-    }
-}
-
 pub struct RunningTrace {
     pub start_time: DateTime<Utc>,
     pub trace_id: i32,
-    pub wrapper: ChildWrapper
+    pub pid: libc::pid_t
+}
+
+impl RunningTrace {
+    pub fn kill(&self) {
+        use libc::kill as _kill;
+        unsafe {
+            _kill(self.pid, 9);
+        }
+    }
 }
 
 lazy_static! {

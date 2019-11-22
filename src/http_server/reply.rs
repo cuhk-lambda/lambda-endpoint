@@ -36,6 +36,11 @@ pub struct RunningTraceReply {
     pub content: Trace,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KillReply {
+    pub killed: bool
+}
+
 impl RunningTraceReply {
     pub(crate) fn new(file_path: String, start_time: DateTime<Utc>, t_id: i32) -> Self {
         use crate::db::schema::trace::traces::dsl::*;

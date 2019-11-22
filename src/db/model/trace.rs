@@ -12,7 +12,7 @@ use serde::*;
 use tokio::prelude::*;
 use uuid::Uuid;
 
-use crate::endpoint::{ChildWrapper, remove_running, RunningTrace};
+use crate::endpoint::{remove_running, RunningTrace};
 use crate::http_client::submit;
 
 #[derive(Queryable, Debug, Serialize, Deserialize)]
@@ -124,25 +124,22 @@ impl Trace {
                 .envs(envs)
                 .spawn();
             match child {
-                Ok(child) => {
-                    let child = ChildWrapper::new(child);
+                Ok(mut child) => {
+                    let rt = RunningTrace {
+                        start_time: Utc::now(),
+                        trace_id: id,
+                        pid: child.id() as i32,
+                    };
+                    crate::endpoint::put_running(_name.as_str(), rt);
                     {
-                        let r = RunningTrace {
-                            start_time: Utc::now(),
-                            trace_id: id,
-                            wrapper: child.clone(),
-                        };
-                        crate::endpoint::put_running(_name.as_str(), r);
-                    }
-                    let mut child = child.inner.borrow_mut();
-                    {
-                        let input = child.stdin.as_mut().expect("unable to get input");
+                        let mut input = child.stdin.expect("unable to get input");
                         input.write(crate::config::global_config().root_password.as_bytes()).unwrap();
                         input.flush().unwrap();
                     }
                     let output =
-                        child.stdout.as_mut().expect("unable to get output");
+                        child.stdout.expect("unable to get output");
                     let mut buffer = Vec::new();
+
                     let mut output = ToBase64Reader::new(output);
                     buffer.resize(crate::config::global_config().submit_chunk_size, 0_u8);
                     let mut k = 0;
@@ -150,7 +147,9 @@ impl Trace {
                         k += 1;
                         match output.read(buffer.as_mut()) {
                             Ok(n) => if n == buffer.len() {
+                                println!("?{}", k);
                                 submit(x.clone(), &buffer[0..n], false, None, k);
+                                println!("!{}", k);
                             } else {
                                 let stderr = child.stderr.as_mut().map(
                                     |x|

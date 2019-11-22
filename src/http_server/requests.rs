@@ -13,3 +13,8 @@ pub struct StartTrace {
     pub lasting: i32
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KillTrace {
+    pub file_path: String,
+}
+

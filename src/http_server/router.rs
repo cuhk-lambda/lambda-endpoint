@@ -28,5 +28,6 @@ pub fn router() -> Router {
         route.post("/start_trace").to(start_trace);
         route.get("/list").to(trace_list);
         route.get("/running_list").to(running_traces);
+        route.post("/kill").to(kill_trace);
     })
 }
