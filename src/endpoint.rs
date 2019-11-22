@@ -1,6 +1,7 @@
-use crate::config::*;
-use crypto_api_osrandom::OsRandom;
 use argon2::Config;
+use crypto_api_osrandom::OsRandom;
+
+use crate::config::*;
 
 pub fn hashed_secret() -> String {
     let mut gen = OsRandom::secure_rng();
@@ -17,6 +18,10 @@ pub fn verify(encoded: &str) -> bool {
         Ok(true) => true,
         _ => false
     }
+}
+
+pub fn authorization() -> String {
+    global_config().endpoint_uuid.clone() + hashed_secret().as_str()
 }
 
 

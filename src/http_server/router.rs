@@ -1,10 +1,11 @@
-use gotham::router::Router;
-use gotham::router::builder::*;
-use super::handler::*;
-use super::global_state::*;
 use gotham::middleware::state::StateMiddleware;
-use gotham::pipeline::single_middleware;
 use gotham::pipeline::single::single_pipeline;
+use gotham::pipeline::single_middleware;
+use gotham::router::builder::*;
+use gotham::router::Router;
+
+use super::global_state::*;
+use super::handler::*;
 
 pub fn router() -> Router {
     // create the counter to share across handlers
@@ -23,5 +24,8 @@ pub fn router() -> Router {
     // build a router with the chain & pipeline
     build_router(chain, pipelines, |route| {
         route.get("/heartbeat").to(heartbeat);
+        route.get("/state").to(endpoint_state);
+        route.post("/start_trace").to(start_trace);
+        route.get("/list").to(trace_list);
     })
 }
