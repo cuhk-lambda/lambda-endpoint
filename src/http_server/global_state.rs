@@ -1,10 +1,18 @@
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
+use hashbrown::HashMap;
+use parking_lot::RwLock;
+
 use crate::db::connection::get_conn;
+use crate::endpoint::RunningTrace;
 
 #[derive(Clone, StateData)]
 pub struct GlobalState {
-    pub start_time: DateTime<Utc>,
+    pub start_time: DateTime<Utc>
 }
+
+impl std::panic::RefUnwindSafe for GlobalState {}
 
 impl GlobalState {
     pub fn new() -> Self {

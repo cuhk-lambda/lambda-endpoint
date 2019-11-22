@@ -4,12 +4,13 @@ use gotham::handler::HandlerFuture;
 use gotham::helpers::http::response::*;
 use gotham::state::{FromState, State};
 use hyper::{Body, HeaderMap, Response, StatusCode};
+use rayon::prelude::*;
 
 use crate::config::global_config;
 use crate::diesel::prelude::*;
 use crate::endpoint::*;
 use crate::http_server::global_state::GlobalState;
-use crate::http_server::reply::{ErrorReply, StartTraceReply, StateReply};
+use crate::http_server::reply::{ErrorReply, RunningTraceReply, StartTraceReply, StateReply};
 
 use super::requests::*;
 
@@ -108,6 +109,21 @@ pub fn trace_list(state: State) -> (State, Response<Body>) {
         let result = traces
             .load::<Trace>(&*conn).expect("failed to load trace");
         let json = serde_json::to_string(&result).unwrap();
+        let body = Body::from(json);
+        let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
+        (state, res)
+    })
+}
+
+pub fn running_traces(state: State) -> (State, Response<Body>) {
+    with_verification(state, box |state| {
+        let list = {
+            let reader = crate::endpoint::RUNNING.read();
+            reader.par_iter().map(|(path, i)| {
+                RunningTraceReply::new(path.clone(), i.start_time, i.trace_id)
+            }).collect::<Vec<_>>()
+        };
+        let json = serde_json::to_string(&list).unwrap();
         let body = Body::from(json);
         let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
         (state, res)

@@ -1,8 +1,10 @@
-use serde::*;
-use crate::cli::config;
 use std::fs::File;
+use std::io::{ErrorKind, Read};
 use std::process::exit;
-use std::io::{Read, ErrorKind};
+
+use serde::*;
+
+use crate::cli::config;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DataBaseConfig {
@@ -21,6 +23,8 @@ pub struct GlobalConfig {
     pub platform_url : String,
     pub secret: String,
     pub endpoint_uuid: String,
+    pub listen_address: String,
+    pub listen_port: u16,
     pub database_config: DataBaseConfig
 }
 
@@ -41,8 +45,13 @@ fn init_config() -> GlobalConfig {
 
 lazy_static!{
     static ref GLOBAL : GlobalConfig = init_config();
+    static ref ADDR : String = format!("{}:{}", GLOBAL.listen_address, GLOBAL.listen_port);
 }
 
 pub fn global_config() -> &'static GlobalConfig {
     &*GLOBAL
+}
+
+pub fn address() -> &'static str {
+    ADDR.as_str()
 }

@@ -18,17 +18,17 @@ mod http_server;
 mod http_client;
 
 fn notice() {
+    println!("Dev Hash: {}", hashed_secret());
+    println!("Listening for requests at http://{}", config::address());
     println!("loaded config: {}", cli::config());
     println!("uuid: {}", config::global_config().endpoint_uuid);
+    println!("===============================================================");
 }
 
 
 fn main() {
     notice();
-    let addr = "127.0.0.1:7878";
-    println!("Dev Hash: {}", hashed_secret());
-    println!("Listening for requests at http://{}", addr);
-    gotham::start(addr, http_server::router())
+    gotham::start(config::address(), http_server::router())
 }
 
 

@@ -1,15 +1,18 @@
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::process::Stdio;
+use std::process::{Child, Stdio};
+use std::sync::Arc;
 
 use base64_stream::ToBase64Reader;
+use chrono::Utc;
 use diesel::*;
 use rayon::prelude::*;
 use serde::*;
 use tokio::prelude::*;
 use uuid::Uuid;
 
+use crate::endpoint::{ChildWrapper, remove_running, RunningTrace};
 use crate::http_client::submit;
 
 #[derive(Queryable, Debug, Serialize, Deserialize)]
@@ -103,10 +106,12 @@ impl Trace {
             ).into_future()
         };
         let flag = t == "STAP";
+        let id = self.id;
+        let _name = name.clone();
         let envs =
             self.environment.iter().cloned().zip(self.values.iter().cloned()).collect::<Vec<(String, String)>>();
         let args = self.options.clone();
-        tokio::spawn(script.and_then(move |x| {
+        let f = script.and_then(move |x| {
             crate::http_client::submit_start(x.clone());
             let child = std::process::Command::new("sudo")
                 .arg("-S")
@@ -120,13 +125,23 @@ impl Trace {
                 .spawn();
             match child {
                 Ok(child) => {
+                    let child = ChildWrapper::new(child);
                     {
-                        let mut input = child.stdin.expect("unable to get input");
+                        let r = RunningTrace {
+                            start_time: Utc::now(),
+                            trace_id: id,
+                            wrapper: child.clone(),
+                        };
+                        crate::endpoint::put_running(_name.as_str(), r);
+                    }
+                    let mut child = child.inner.borrow_mut();
+                    {
+                        let input = child.stdin.as_mut().expect("unable to get input");
                         input.write(crate::config::global_config().root_password.as_bytes()).unwrap();
                         input.flush().unwrap();
                     }
                     let output =
-                        child.stdout.expect("unable to get output");
+                        child.stdout.as_mut().expect("unable to get output");
                     let mut buffer = Vec::new();
                     let mut output = ToBase64Reader::new(output);
                     buffer.resize(crate::config::global_config().submit_chunk_size, 0_u8);
@@ -137,8 +152,8 @@ impl Trace {
                             Ok(n) => if n == buffer.len() {
                                 submit(x.clone(), &buffer[0..n], false, None, k);
                             } else {
-                                let stderr = child.stderr.map(
-                                    |mut x|
+                                let stderr = child.stderr.as_mut().map(
+                                    |x|
                                         {
                                             let mut b = String::new();
                                             x.read_to_string(&mut b).expect("failed to get stderr");
@@ -146,10 +161,12 @@ impl Trace {
                                         });
                                 submit(x.clone(), &buffer[0..n], true, stderr, k);
                                 println!("[INFO] all submissions of {} finished.", x);
+                                remove_running(_name.as_str());
                                 break;
                             },
                             Err(e) => {
                                 eprintln!("[ERROR] error encountered when running {}: {}", x, e);
+                                remove_running(_name.as_str());
                                 break;
                             }
                         }
@@ -161,7 +178,9 @@ impl Trace {
                     Err(())
                 }
             }
-        }));
+        });
+        tokio::spawn(f);
+
         name
     }
 }

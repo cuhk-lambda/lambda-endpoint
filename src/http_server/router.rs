@@ -27,5 +27,6 @@ pub fn router() -> Router {
         route.get("/state").to(endpoint_state);
         route.post("/start_trace").to(start_trace);
         route.get("/list").to(trace_list);
+        route.get("/running_list").to(running_traces);
     })
 }

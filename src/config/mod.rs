@@ -1,2 +1,3 @@
-mod global_config;
-pub use global_config::global_config;
+pub use global_config::*;
+
+pub(crate) mod global_config;

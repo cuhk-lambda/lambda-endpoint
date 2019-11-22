@@ -1,7 +1,63 @@
+use std::cell::RefCell;
+use std::process::{Child, ChildStdin};
+use std::sync::Arc;
+
 use argon2::Config;
+use chrono::{DateTime, Utc};
 use crypto_api_osrandom::OsRandom;
+use hashbrown::HashMap;
+use parking_lot::RwLock;
+use serde::*;
 
 use crate::config::*;
+
+#[derive(Clone)]
+pub struct ChildWrapper {
+    pub inner: Arc<RefCell<Child>>,
+    ptr: *mut Child
+}
+
+unsafe impl Send for ChildWrapper {}
+
+unsafe impl Sync for ChildWrapper {}
+
+impl ChildWrapper {
+    pub fn new(child: Child) -> Self {
+        let cell = RefCell::new(child);
+        let ptr = cell.as_ptr();
+        ChildWrapper {
+            inner: Arc::new(cell),
+            ptr
+        }
+    }
+    pub fn kill(&self) {
+        unsafe {
+            (*self.ptr).kill().unwrap()
+        }
+    }
+}
+
+pub struct RunningTrace {
+    pub start_time: DateTime<Utc>,
+    pub trace_id: i32,
+    pub wrapper: ChildWrapper
+}
+
+lazy_static! {
+    pub static ref RUNNING:  RwLock<HashMap<String, RunningTrace>> = RwLock::new(HashMap::new());
+}
+
+pub fn put_running(x: &str, trace: RunningTrace) {
+    let mut writer = RUNNING.write();
+    writer.insert(x.to_string(), trace);
+    drop(writer)
+}
+
+pub fn remove_running(x: &str) {
+    let mut writer = RUNNING.write();
+    writer.remove(x);
+    drop(writer)
+}
 
 pub fn hashed_secret() -> String {
     let mut gen = OsRandom::secure_rng();
