@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::process::{Child, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Stdio};
 use std::sync::Arc;
 
 use base64_stream::ToBase64Reader;
@@ -10,6 +10,7 @@ use diesel::*;
 use rayon::prelude::*;
 use serde::*;
 use tokio::prelude::*;
+use tokio::spawn;
 use uuid::Uuid;
 
 use crate::endpoint::{remove_running, RunningTrace};
@@ -25,6 +26,29 @@ pub struct Trace {
     pub options: Vec<String>,
 }
 
+fn submit_step(mut k: usize, mut stdout: ChildStdout, mut stderr: ChildStderr, name: String, mut buffer: Vec<u8>) {
+    k += 1;
+    match stdout.read(buffer.as_mut()) {
+        Ok(n) => if n == buffer.len() {
+            submit(name.clone(), &buffer[0..n], false, None, k);
+            tokio::spawn(futures::future::lazy(move || Ok(
+                submit_step(k, stdout, stderr, name, buffer))));
+        } else {
+            let stderr = Some({
+                let mut b = String::new();
+                stderr.read_to_string(&mut b).expect("failed to get stderr");
+                b
+            });
+            submit(name.clone(), &buffer[0..n], true, stderr, k);
+            println!("[INFO] all submissions of {} finished.", name);
+            remove_running(name.as_str());
+        },
+        Err(e) => {
+            eprintln!("[ERROR] error encountered when running {}: {}", name, e);
+            remove_running(name.as_str());
+        }
+    }
+}
 macro_rules! template {
     ("STAP") => {
 r#"
@@ -132,7 +156,7 @@ impl Trace {
                     }
                     let output =
                         child.stdout.take().expect("unable to get output");
-                    let mut stderr =
+                    let stderr =
                         child.stderr.take().expect("unable to get output");
                     let rt = RunningTrace {
                         start_time: Utc::now(),
@@ -142,34 +166,8 @@ impl Trace {
                     crate::endpoint::put_running(_name.as_str(), rt);
                     let mut buffer = Vec::new();
 
-                    let mut output = ToBase64Reader::new(output);
                     buffer.resize(crate::config::global_config().submit_chunk_size, 0_u8);
-                    let mut k = 0;
-                    loop {
-                        k += 1;
-                        match output.read(buffer.as_mut()) {
-                            Ok(n) => if n == buffer.len() {
-                                println!("?{}", k);
-                                submit(x.clone(), &buffer[0..n], false, None, k);
-                                println!("!{}", k);
-                            } else {
-                                let stderr = Some({
-                                    let mut b = String::new();
-                                    stderr.read_to_string(&mut b).expect("failed to get stderr");
-                                    b
-                                });
-                                submit(x.clone(), &buffer[0..n], true, stderr, k);
-                                println!("[INFO] all submissions of {} finished.", x);
-                                remove_running(_name.as_str());
-                                break;
-                            },
-                            Err(e) => {
-                                eprintln!("[ERROR] error encountered when running {}: {}", x, e);
-                                remove_running(_name.as_str());
-                                break;
-                            }
-                        }
-                    }
+                    submit_step(0, output, stderr, _name, buffer);
                     Ok(())
                 }
                 Err(e) => {
