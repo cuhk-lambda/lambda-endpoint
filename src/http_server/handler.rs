@@ -235,12 +235,12 @@ pub fn put_trace(mut state: State) -> Box<HandlerFuture> {
             Ok(body) => {
                 match simd_json::serde::from_slice::<PutTrace>(body.to_vec().as_mut_slice()) {
                     Ok(p) => {
-                        let conn = crate::db::connection::get_conn();
                         if p.function_list.len() == 0 {
                             Ok(to_err_response(state, "empty function list", StatusCode::BAD_REQUEST))
                         } else if p.environment.len() != p.values.len() {
                             Ok(to_err_response(state, "wrong size of environment values", StatusCode::BAD_REQUEST))
                         } else {
+                            let conn = crate::db::connection::get_conn();
                             match diesel::insert_into(traces::table).values(&p).get_result::<Trace>(&*conn) {
                                 Ok(res) => {
                                     println!("[INFO] new trace put: {:#}", serde_json::to_string_pretty(&res).unwrap());
