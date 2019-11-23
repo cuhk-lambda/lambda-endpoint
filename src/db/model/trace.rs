@@ -51,7 +51,7 @@ macro_rules! template {
 r#"
 probe process("{}").function("{}").call {{
     printf("probe: %s", ppfunc());
-    print_usyms(ucallers(5));
+    print_usyms(ucallers(-1));
 }}
 "#
 };
