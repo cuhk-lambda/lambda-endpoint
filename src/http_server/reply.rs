@@ -57,4 +57,7 @@ impl RunningTraceReply {
     }
 }
 
-
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeleteReply {
+    pub deleted: usize
+}

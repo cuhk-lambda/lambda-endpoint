@@ -1,16 +1,13 @@
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Stdio};
-use std::sync::Arc;
+use std::process::{ChildStderr, ChildStdout, Stdio};
 
-use base64_stream::ToBase64Reader;
 use chrono::Utc;
 use diesel::*;
 use rayon::prelude::*;
 use serde::*;
 use tokio::prelude::*;
-use tokio::spawn;
 use uuid::Uuid;
 
 use crate::endpoint::{remove_running, RunningTrace};

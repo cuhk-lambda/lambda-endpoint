@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use chrono::Utc;
 use futures::prelude::*;
 use gotham::handler::HandlerFuture;
@@ -5,12 +7,13 @@ use gotham::helpers::http::response::*;
 use gotham::state::{FromState, State};
 use hyper::{Body, HeaderMap, Response, StatusCode};
 use rayon::prelude::*;
+use serde::Serialize;
 
 use crate::config::global_config;
 use crate::diesel::prelude::*;
 use crate::endpoint::*;
 use crate::http_server::global_state::GlobalState;
-use crate::http_server::reply::{ErrorReply, KillReply, RunningTraceReply, StartTraceReply, StateReply};
+use crate::http_server::reply::{DeleteReply, ErrorReply, KillReply, RunningTraceReply, StartTraceReply, StateReply};
 
 use super::requests::*;
 
@@ -66,6 +69,20 @@ fn with_verification_res<E>(state: State, todo: Box<dyn Fn(State) -> Result<(Sta
             Ok((state, res))
         }
     }
+}
+
+fn to_err_response<E: Display>(state: State, e: E, code: StatusCode) -> (State, Response<Body>) {
+    let json = ErrorReply { error: format!("{}", e) };
+    let body = Body::from(serde_json::to_string(&json).unwrap());
+    let res = create_response(&state, code, mime::APPLICATION_JSON, body);
+    (state, res)
+}
+
+fn to_json_response<J: Serialize>(state: State, j: &J) -> (State, Response<Body>) {
+    let json = serde_json::to_string(j).unwrap();
+    let body = Body::from(json);
+    let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
+    (state, res)
 }
 
 pub fn heartbeat(state: State) -> (State, Response<Body>) {
@@ -162,10 +179,7 @@ pub fn kill_trace(mut state: State) -> Box<HandlerFuture> {
             })
         }
         Err(e) => {
-            let json = ErrorReply { error: format!("{}", e) };
-            let body = Body::from(serde_json::to_string(&json).unwrap());
-            let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
-            Ok((state, res))
+            Ok(to_err_response(state, e, StatusCode::BAD_REQUEST))
         }
     });
     Box::new(f)
@@ -204,12 +218,68 @@ pub fn start_trace(mut state: State) -> Box<HandlerFuture> {
             })
         }
         Err(e) => {
-            let json = ErrorReply { error: format!("{}", e) };
-            let body = Body::from(serde_json::to_string(&json).unwrap());
-            let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
-            Ok((state, res))
+            Ok(to_err_response(state, e, StatusCode::BAD_REQUEST))
         }
     });
 
     Box::new(f)
+}
+
+pub fn put_trace(mut state: State) -> Box<HandlerFuture> {
+    let body = Body::take_from(&mut state);
+    use crate::db::schema::trace::traces;
+    use crate::db::model::trace::Trace;
+    let f = body.concat2().then(|x| {
+        with_verification_res(state, box move |state| match &x {
+            Err(e) => Ok(to_err_response(state, e, StatusCode::BAD_REQUEST)),
+            Ok(body) => {
+                match simd_json::serde::from_slice::<PutTrace>(body.to_vec().as_mut_slice()) {
+                    Ok(p) => {
+                        let conn = crate::db::connection::get_conn();
+                        if p.function_list.len() == 0 {
+                            Ok(to_err_response(state, "empty function list", StatusCode::BAD_REQUEST))
+                        } else if p.environment.len() != p.values.len() {
+                            Ok(to_err_response(state, "wrong size of environment values", StatusCode::BAD_REQUEST))
+                        } else {
+                            match diesel::insert_into(traces::table).values(&p).get_result::<Trace>(&*conn) {
+                                Ok(res) => {
+                                    println!("[INFO] new trace put: {:#}", serde_json::to_string_pretty(&res).unwrap());
+                                    Ok(to_json_response(state, &res))
+                                },
+                                Err(m) => Ok(to_err_response(state, m, StatusCode::BAD_REQUEST))
+                            }
+                        }
+                    },
+                    Err(e) => Ok(to_err_response(state, e, StatusCode::BAD_REQUEST))
+                }
+            }
+        })
+    });
+    box f
+}
+
+pub fn delete_trace(mut state: State) -> Box<HandlerFuture> {
+    let body = Body::take_from(&mut state);
+    use crate::db::schema::trace::traces::dsl::*;
+    let f = body.concat2().then(|x| {
+        match x {
+            Ok(body) => {
+                match simd_json::serde::from_slice::<DeleteTrace>(body.to_vec().as_mut_slice()) {
+                    Ok(del) => {
+                        let conn = crate::db::connection::get_conn();
+                        match diesel::delete(traces.filter(id.eq(del.trace_id)))
+                            .execute(&*conn)
+                            {
+                                Ok(e) => Ok(to_json_response(state, &DeleteReply { deleted: e })),
+                                Err(e) =>
+                                    Ok(to_err_response(state, e, StatusCode::BAD_REQUEST))
+                            }
+                    },
+                    Err(e) => Ok(to_err_response(state, e, StatusCode::BAD_REQUEST))
+                }
+            },
+            Err(e) => Ok(to_err_response(state, e, StatusCode::BAD_REQUEST))
+        }
+    });
+    box f
 }
