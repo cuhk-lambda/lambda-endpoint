@@ -6,6 +6,7 @@ extern crate gotham_derive;
 #[macro_use]
 extern crate lazy_static;
 
+use crate::cli::app::SUB_COMMAND;
 use crate::endpoint::hashed_secret;
 
 #[global_allocator]
@@ -27,8 +28,10 @@ fn notice() {
 
 
 fn main() {
-    notice();
-    gotham::start(config::address(), http_server::router())
+    if SUB_COMMAND.0 == "endpoint" {
+        notice();
+        gotham::start(config::address(), http_server::router())
+    }
 }
 
 
