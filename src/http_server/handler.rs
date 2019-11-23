@@ -46,7 +46,7 @@ fn with_verification(state: State, todo: Box<dyn Fn(State) -> (State, Response<B
         Err(e) => {
             let json = ErrorReply { error: format!("{}", e) };
             let body = Body::from(serde_json::to_string(&json).unwrap());
-            let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
+            let res = create_response(&state, StatusCode::BAD_REQUEST, mime::APPLICATION_JSON, body);
             (state, res)
         }
     }
@@ -65,7 +65,7 @@ fn with_verification_res<E>(state: State, todo: Box<dyn Fn(State) -> Result<(Sta
         Err(e) => {
             let json = ErrorReply { error: format!("{}", e) };
             let body = Body::from(serde_json::to_string(&json).unwrap());
-            let res = create_response(&state, StatusCode::OK, mime::APPLICATION_JSON, body);
+            let res = create_response(&state, StatusCode::BAD_REQUEST, mime::APPLICATION_JSON, body);
             Ok((state, res))
         }
     }
