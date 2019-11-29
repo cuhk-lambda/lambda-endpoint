@@ -56,7 +56,9 @@ probe process("{}").function("{}").call {{
 "#
 };
     ("BPF") => {
-    r#"uprobe:{}:{} {{ printf("probe: %s\n%s\n", probe, ustack(perf, 5)); }}"#
+    r#"
+    uprobe:{}:{} {{ printf("probe: %s\n%s\n", probe, ustack(perf, 5)); }}
+    "#
     };
 }
 
