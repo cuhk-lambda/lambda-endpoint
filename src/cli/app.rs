@@ -124,7 +124,7 @@ fn get_multiple(name: &str) -> Vec<String> {
 
 fn get_env() -> (Vec<String>, Vec<String>) {
     let env = get_multiple("environment");
-    let regex = r"\([\s]*([\da-zA-Z]+)[\s]*,[\s]*([\da-zA-Z]+)[\s]*\)";
+    let regex = r"\([\s]*([\da-zA-Z_]+)[\s]*,[\s]*([\da-zA-Z_]+)[\s]*\)";
     let rg = Regex::new(regex).unwrap();
     let mut a = Vec::new();
     let mut b = Vec::new();
