@@ -56,9 +56,11 @@ probe process("{}").function("{}").call {{
 "#
 };
     ("BPF") => {
-    r#"
-    uprobe:{}:{} {{ printf("probe: %s\n%s\n", probe, ustack(perf, 5)); }}
-    "#
+r#"
+uprobe:{}:{} {{
+    printf("probe: %s\n%s\n", probe, ustack(perf, 5));
+}}
+"#
     };
 }
 
@@ -67,7 +69,7 @@ fn ending(s: &str, t: usize) -> String {
         "STAP" =>
             format!("probe timer.s({}) {{exit(); }}\n", t),
         "BPF" =>
-            format!("interval:s:({}) {{ exit(); }}\n", t),
+            format!("interval:s:{} {{ exit(); }}\n", t),
         _ => unreachable!()
     }
 }
@@ -138,7 +140,7 @@ impl Trace {
             crate::http_client::submit_start(x.clone());
             let child = std::process::Command::new("sudo")
                 .arg("-S")
-                .arg(if flag { crate::config::global_config().stap_path.as_str() } else { crate::config::global_config().stap_path.as_str() })
+                .arg(if flag { crate::config::global_config().stap_path.as_str() } else { crate::config::global_config().bpf_path.as_str() })
                 .arg(x.as_str())
                 .args(args)
                 .stdout(Stdio::piped())

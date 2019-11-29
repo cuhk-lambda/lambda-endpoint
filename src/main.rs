@@ -134,7 +134,7 @@ fn main() {
                     let flag = task.trace_type == "STAP";
                     let res = script.and_then(|x| std::process::Command::new("sudo")
                         .arg("-S")
-                        .arg(if flag { crate::config::global_config().stap_path.as_str() } else { crate::config::global_config().stap_path.as_str() })
+                        .arg(if flag { crate::config::global_config().stap_path.as_str() } else { crate::config::global_config().bpf_path.as_str() })
                         .arg(x.as_str())
                         .args(args)
                         .stdout(Stdio::piped())
